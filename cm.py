@@ -12,8 +12,7 @@
 # limitations under the License.
 import logging
 from time import sleep
-
-from topology_cdh import cm_api
+import cm_api
 
 logger = logging.getLogger('clusterdock.{}'.format(__name__))
 
