@@ -1,0 +1,23 @@
+{
+  "name": "edgenode",
+  "clusterRef": {
+    "clusterName": "cluster"
+  },
+  "roleConfigGroupRefs": [
+    {
+      "roleConfigGroupName": "hive-GATEWAY-BASE"
+    },
+    {
+      "roleConfigGroupName": "hbase-GATEWAY-BASE"
+    },
+    {
+      "roleConfigGroupName": "hdfs-GATEWAY-BASE"
+    },
+    {
+      "roleConfigGroupName": "yarn-GATEWAY-BASE"
+    },
+    {
+      "roleConfigGroupName": "spark_on_yarn-GATEWAY-BASE"
+    }
+  ]
+}

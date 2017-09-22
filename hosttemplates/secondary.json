@@ -1,0 +1,17 @@
+{
+  "name": "secondary",
+  "clusterRef": {
+    "clusterName": "cluster"
+  },
+  "roleConfigGroupRefs": [
+    {
+      "roleConfigGroupName": "hdfs-DATANODE-BASE"
+    },
+    {
+      "roleConfigGroupName": "hbase-REGIONSERVER-BASE"
+    },
+    {
+      "roleConfigGroupName": "yarn-NODEMANAGER-BASE"
+    }
+  ]
+}

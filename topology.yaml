@@ -1,0 +1,41 @@
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+# # Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# yaml definition file for the CDH topology.
+
+name: clusterdock-de-5120
+description: A CDH 5.12 cluster with 1 primary node, 1 secondary node and 1 edge node.
+
+node groups:
+    primary-node:
+        - node-1
+    secondary-nodes:
+        - node-2
+    edge-nodes:
+        - edge-1
+
+start args:
+    --version-string:
+        default: cdh5120
+        help: CDH version to use
+        metavar: ver
+    --dont-start-cluster:
+        action: store_true
+        help: Don't start clusters/services in Cloudera Manager
+    --exclude-services, -x:
+        help: If specified, a comma-separated list of service types to exclude from the CDH cluster
+        metavar: svc1,svc2,...
+    --include-services, -i:
+        help: If specified, a comma-separated list of service types to include in the CDH cluster
+        metavar: svc1,svc2,...
+    --predictable:
+        action: store_true
+        help: If specified, attempt to expose container ports to the same port number on the host
