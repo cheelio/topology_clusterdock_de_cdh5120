@@ -15,6 +15,7 @@ import io
 import logging
 import re
 import socket
+import time
 
 from configobj import ConfigObj
 
@@ -68,6 +69,9 @@ def main(args):
     secondary_nodes = [Node(hostname=hostname, group='secondary', image=secondary_node_image)
                        for hostname in args.secondary_nodes]
 
+    edge_nodes = [Node(hostname=hostname, group='edge', image=edge_node_image)
+                       for hostname in args.edge_nodes]
+
     cluster = Cluster(primary_node, *secondary_nodes)
     cluster.primary_node = primary_node
     cluster.start(args.network)
@@ -89,8 +93,14 @@ def main(args):
                       files=['/var/lib/cloudera-scm-agent/uuid',
                              '/dfs*/dn/current/*'])
 
+    logger.info('Configuring Kerberos...')
+
+    cluster.primary_node.execute('/root/configure-kerberos.sh')
+    cluster.primary_node.execute('service krb5kdc start')
+    cluster.primary_node.execute('service kadmin start')
+
     logger.info('Restarting Cloudera Manager agents ...')
-    _restart_cm_agents(cluster)
+    #_restart_cm_agents(cluster)
 
     logger.info('Waiting for Cloudera Manager server to come online ...')
     _wait_for_cm_server(primary_node)
@@ -105,6 +115,13 @@ def main(args):
     # The work we need to do through CM itself begins here...
     deployment = ClouderaManagerDeployment(server_url)
 
+    logger.info("Regenerating keytabs...")
+    cluster.primary_node.execute("curl -sc cookiejar -XGET -u admin:admin http://{0}:{1}/api/v14/clusters/cluster > /dev/null"
+            .format(primary_node.fqdn, 7180))
+
+    cluster.primary_node.execute("curl -sb cookiejar -XPOST http://{0}:{1}/cmf/hardware/regenerateKeytab --data 'hostId=2&hostId=3&hostId=1' -H 'Referer: http://{0}:{1}/cmf/hardware/hosts' > /dev/null"
+            .format(primary_node.fqdn, 7180))
+
     # Add all CM hosts to the cluster (i.e. only new hosts that weren't part of the original
     # images).
     all_host_ids = {}
@@ -116,87 +133,72 @@ def main(args):
                 break
         else:
             raise Exception('Could not find CM host with hostname {}.'.format(node.fqdn))
-    cluster_host_ids = {host['hostId']
-                        for host in deployment.get_cluster_hosts(cluster_name=DEFAULT_CLUSTER_NAME)}
-    host_ids_to_add = set(all_host_ids.keys()) - cluster_host_ids
-    if host_ids_to_add:
-        logger.debug('Adding %s to cluster %s ...',
-                     'host{} ({})'.format('s' if len(host_ids_to_add) > 1 else '',
-                                          ', '.join(all_host_ids[host_id]
-                                                    for host_id in host_ids_to_add)),
-                     DEFAULT_CLUSTER_NAME)
-        deployment.add_cluster_hosts(cluster_name=DEFAULT_CLUSTER_NAME, host_ids=host_ids_to_add)
-        _wait_for_activated_cdh_parcel(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME)
+
+
+
+    #cluster_host_ids = {host['hostId']
+    #                    for host in deployment.get_cluster_hosts(cluster_name=DEFAULT_CLUSTER_NAME)}
+    #host_ids_to_add = set(all_host_ids.keys()) - cluster_host_ids
+    #if host_ids_to_add:
+    #    logger.debug('Adding %s to cluster %s ...',
+    #                 'host{} ({})'.format('s' if len(host_ids_to_add) > 1 else '',
+    #                                      ', '.join(all_host_ids[host_id]
+    #                                                for host_id in host_ids_to_add)),
+    #                 DEFAULT_CLUSTER_NAME)
+    #    deployment.add_cluster_hosts(cluster_name=DEFAULT_CLUSTER_NAME, host_ids=host_ids_to_add)
+    #    _wait_for_activated_cdh_parcel(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME)
 
         # Create and apply a host template to ensure that all the secondary nodes have the same
         # CM roles running on them.
-        logger.info('Creating secondary node host template ...')
-        _create_secondary_node_template(deployment=deployment,
-                                        cluster_name=DEFAULT_CLUSTER_NAME,
-                                        secondary_node=secondary_nodes[0])
-        deployment.apply_host_template(cluster_name=DEFAULT_CLUSTER_NAME,
-                                       host_template_name=SECONDARY_NODE_TEMPLATE_NAME,
-                                       start_roles=False,
-                                       host_ids=host_ids_to_add)
-    else:
-        _wait_for_activated_cdh_parcel(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME)
+    #    logger.info('Creating secondary node host template ...')
+    #    _create_secondary_node_template(deployment=deployment,
+    #                                    cluster_name=DEFAULT_CLUSTER_NAME,
+    #                                    secondary_node=secondary_nodes[0])
+    #    deployment.apply_host_template(cluster_name=DEFAULT_CLUSTER_NAME,
+    #                                   host_template_name=SECONDARY_NODE_TEMPLATE_NAME,
+    #                                   start_roles=False,
+    #                                   host_ids=host_ids_to_add)
+    #else:
+    #    _wait_for_activated_cdh_parcel(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME)
 
-    if args.java:
-        java_home = '/usr/java/{}'.format(args.java)
-        logger.info('Updating JAVA_HOME config on all hosts to %s ...', java_home)
-        deployment.update_all_hosts_config(configs={'java_home': java_home})
-
-    logger.info('Updating CM server configurations ...')
-    deployment.update_cm_config(configs={'manages_parcels': True})
-
-    if args.include_services:
-        if args.exclude_services:
-            raise ValueError('Cannot pass both --include-services and --exclude-services.')
-        service_types_to_leave = args.include_services.upper().split(',')
-        for service in deployment.get_cluster_services(cluster_name=DEFAULT_CLUSTER_NAME):
-            if service['type'] not in service_types_to_leave:
-                logger.info('Removing cluster service (name = %s) ...',
-                            service['name'])
-                deployment.delete_cluster_service(cluster_name=DEFAULT_CLUSTER_NAME,
-                                                  service_name=service['name'])
-    elif args.exclude_services:
-        service_types_to_remove = args.exclude_services.upper().split(',')
-        for service in deployment.get_cluster_services(cluster_name=DEFAULT_CLUSTER_NAME):
-            if service['type'] in service_types_to_remove:
-                logger.info('Removing cluster service (name = %s) ...',
-                            service['name'])
-                deployment.delete_cluster_service(cluster_name=DEFAULT_CLUSTER_NAME,
-                                                  service_name=service['name'])
-
-    cluster_service_types = {service['type']
-                             for service
-                             in deployment.get_cluster_services(cluster_name=DEFAULT_CLUSTER_NAME)}
+    if len(cluster.nodes) > 2:
+        deployment.add_hosts_to_cluster(secondary_node_fqdn=secondary_nodes[0].fqdn,
+                                        all_fqdns=[node.fqdn for node in cluster],
+                                        secondary_nodes=secondary_nodes,
+                                        edge_nodes=edge_nodes)
 
     logger.info('Updating database configurations ...')
     _update_database_configs(deployment=deployment,
                              cluster_name=DEFAULT_CLUSTER_NAME,
                              primary_node=primary_node)
 
-    if 'HIVE' in cluster_service_types and 'HDFS' in cluster_service_types:
-        logger.info('Updating Hive Metastore Namenodes ...')
-        _update_hive_metastore_namenodes(deployment=deployment,
-                                         cluster_name=DEFAULT_CLUSTER_NAME)
+    #deployment.update_database_configs()
+    # deployment.update_hive_metastore_namenodes()
 
-    # Whether a user requests a service version or not, we always begin by removing it from the
-    # cluster services list (if present) so that configurations can always be generated anew.
-    for service in deployment.get_cluster_services(cluster_name=DEFAULT_CLUSTER_NAME):
-        if service['type'] == 'KUDU':
-            logger.debug('Removing cluster service (name = %s) ...',
-                         service['name'])
-            deployment.delete_cluster_service(cluster_name=DEFAULT_CLUSTER_NAME,
-                                              service_name=service['name'])
-            logger.debug('Clearing /data/kudu/master on primary node ...')
-            cluster.primary_node.execute('rm -rf /data/kudu/master')
-        elif service['type'] == 'KAFKA':
-            logger.debug('Removing cluster service (name = %s) ...',
-                         service['name'])
-            deployment.delete_cluster_service(cluster_name=DEFAULT_CLUSTER_NAME,
-                                              service_name=service['name'])
+    logger.info("Update KDC Config  ")
+    deployment.update_cm_config(
+        {'SECURITY_REALM': 'CLOUDERA', 'KDC_HOST': 'node-1.cluster', 'KRB_MANAGE_KRB5_CONF': 'true'})
+
+    deployment.update_service_config(service_name='hbase', cluster_name=DEFAULT_CLUSTER_NAME, configs={'hbase_superuser': 'cloudera-scm'})
+
+    logger.info("Importing Credentials..")
+
+    cluster.primary_node.execute("curl -XPOST -u admin:admin http://{0}:{1}/api/v14/cm/commands/importAdminCredentials --data 'username=cloudera-scm/admin@CLOUDERA&password=cloudera'".format(primary_node.fqdn, 7180))
+    logger.info("deploy cluster client config...")
+    deployment.deploy_cluster_client_config(cluster_name=DEFAULT_CLUSTER_NAME)
+
+    logger.info("Configure for kerberos...")
+    cluster.primary_node.execute("curl -XPOST -u admin:admin http://{0}:{1}/api/v14/cm/commands/configureForKerberos --data 'clustername={2}'".format(primary_node.fqdn, 7180,DEFAULT_CLUSTER_NAME))
+
+    while True:
+        gcl = filter(lambda x: x.name == "GenerateCredentials" and x.active is True, deployment.cm.get_commands())
+        if len(gcl) == 0:
+            break
+        time.sleep(1)
+
+    logger.info("Creating keytab files...")
+    cluster.execute('/root/create-keytab.sh')
+
     logger.info('Deploying client config ...')
     _deploy_client_config(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME)
 
@@ -208,6 +210,21 @@ def main(args):
 
         logger.info('Validating service health ...')
         _validate_service_health(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME)
+
+    logger.info("Setting up HDFS Homedir...")
+
+    cluster.primary_node.execute("kinit -kt /var/run/cloudera-scm-agent/process/*-hdfs-NAMENODE/hdfs.keytab hdfs/node-1.cluster@CLOUDERA")
+    cluster.primary_node.execute("hadoop fs -mkdir /user/cloudera-scm")
+    cluster.primary_node.execute("hadoop fs -chown cloudera-scm:cloudera-scm /user/cloudera-scm")
+
+    cluster.primary_node.execute('')
+
+
+    logger.info("Kinit cloudera-scm/admin...")
+    cluster.execute('kinit -kt /root/cloudera-scm.keytab cloudera-scm/admin')
+
+    logger.info("Executing post run script...")
+    cluster.execute("/root/post_run.sh")
 
 
 def _configure_cm_agents(cluster):
