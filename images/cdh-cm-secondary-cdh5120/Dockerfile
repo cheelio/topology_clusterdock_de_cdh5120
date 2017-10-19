@@ -12,7 +12,7 @@ ADD files/supervisord /etc/init.d/
 RUN chmod +x /etc/init.d/supervisord
 ADD files/supervisord.conf /etc/
 RUN mkdir -p /etc/supervisord.d
-RUN yum -y install unzip ansible
+RUN yum -y install unzip ansible; yum clean all
 ADD files/post_run.sh /root/post_run.sh
 RUN chmod +x /root/post_run.sh
 
