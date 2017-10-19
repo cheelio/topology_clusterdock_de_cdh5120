@@ -1,0 +1,211 @@
+##################### Grafana Configuration Defaults #####################
+app_mode = production
+instance_name = ${HOSTNAME}
+
+#################################### Paths ###############################
+[paths]
+data = data
+logs = data/log
+plugins = data/plugins
+
+#################################### Server ##############################
+[server]
+protocol = http
+http_addr =
+http_port = 3000
+domain = {{ ansible_fqdn }}
+enforce_domain = false
+root_url = %(protocol)s://%(domain)s:%(http_port)s/
+router_logging = false
+static_root_path = public
+enable_gzip = false
+cert_file =
+cert_key =
+
+#################################### Database ############################
+[database]
+type = sqlite3
+host = 127.0.0.1:3306
+name = grafana
+user = root
+password =
+url =
+ssl_mode = disable
+ca_cert_path =
+client_key_path =
+client_cert_path =
+server_cert_name =
+path = grafana.db
+
+#################################### Session #############################
+[session]
+provider = file
+provider_config = sessions
+cookie_name = grafana_sess
+cookie_secure = false
+session_life_time = 86400
+gc_interval_time = 86400
+
+#################################### Security ############################
+[security]
+admin_user = admin
+admin_password = admin
+secret_key = SW2YcwTIb9zpOOhoPsMm
+login_remember_days = 10000
+cookie_username = grafana_user
+cookie_remember_name = grafana_remember
+disable_gravatar = true
+data_source_proxy_whitelist =
+
+[snapshots]
+external_enabled = true
+external_snapshot_url = https://snapshots-origin.raintank.io
+external_snapshot_name = Publish to snapshot.raintank.io
+snapshot_remove_expired = true
+snapshot_TTL_days = 90
+
+#################################### Users ####################################
+[users]
+allow_sign_up = false
+allow_org_create = false
+auto_assign_org = true
+auto_assign_org_role = Editor
+verify_email_enabled = false
+login_hint = email or username
+default_theme = dark
+
+[auth]
+disable_login_form = false
+
+#################################### Anonymous Auth ######################
+[auth.anonymous]
+enabled = true
+org_name = TEST
+org_role = Viewer
+
+#################################### Basic Auth ##########################
+[auth.basic]
+enabled = true
+
+#################################### Auth LDAP ###########################
+[auth.ldap]
+enabled = false
+config_file = ldap.toml
+allow_sign_up = false
+
+#################################### SMTP / Emailing #####################
+[smtp]
+enabled = false
+host = localhost:25
+from_address = admin@grafana.localhost
+user =
+password =
+cert_file =
+key_file =
+skip_verify = true
+
+[emails]
+welcome_email_on_sign_up = false
+templates_pattern = emails/*.html
+
+#################################### Logging ##########################
+[log]
+mode = console, file
+level = info
+filters =
+
+[log.console]
+level =
+format = console
+
+[log.file]
+level =
+format = text
+log_rotate = true
+max_lines = 1000000
+max_size_shift = 28
+daily_rotate = true
+max_days = 7
+
+[log.syslog]
+level =
+format = text
+network =
+address =
+facility =
+tag =
+
+#################################### AMQP Event Publisher ################
+[event_publisher]
+enabled = false
+rabbitmq_url = amqp://localhost/
+exchange = grafana_events
+
+#################################### Dashboard JSON files ################
+[dashboards.json]
+enabled = false
+path = /var/lib/grafana/dashboards
+
+#################################### Usage Quotas ########################
+[quota]
+enabled = false
+org_user = -1
+org_dashboard = 100
+org_data_source = 10
+org_api_key = 10
+user_org = 10
+global_user = -1
+global_org = -1
+global_dashboard = -1
+global_api_key = -1
+global_session = -1
+
+#################################### Alerting ############################
+# docs about alerting can be found in /docs/sources/alerting/
+#              __.-/|
+#              \`o_O'
+#               =( )=  +----------------------------+
+#                 U|   | Alerting is still in alpha |
+#       /\  /\   / |   +----------------------------+
+#      ) /^\) ^\/ _)\     |
+#      )   /^\/   _) \    |
+#      )   _ /  / _)  \___|_
+#  /\  )/\/ ||  | )_)\___,|))
+# <  >      |(,,) )__)    |
+#  ||      /    \)___)\
+#  | \____(      )___) )____
+#   \______(_______;;;)__;;;)
+
+[alerting]
+# Makes it possible to turn off alert rule execution.
+execute_alerts = true
+
+#################################### Internal Grafana Metrics ############
+# Metrics available at HTTP API Url /api/metrics
+[metrics]
+enabled           = false
+interval_seconds  = 10
+
+# Send internal Grafana metrics to graphite
+[metrics.graphite]
+# Enable by setting the address setting (ex localhost:2003)
+address =
+prefix = prod.grafana.%(instance_name)s.
+
+[grafana_net]
+url = https://grafana.net
+
+#################################### External Image Storage ##############
+[external_image_storage]
+# You can choose between (s3, webdav)
+provider =
+
+[external_image_storage.s3]
+bucket_url =
+access_key =
+secret_key =
+
+[external_image_storage.webdav]
+url =
+username =
+password =

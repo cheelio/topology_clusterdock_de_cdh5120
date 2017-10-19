@@ -1,0 +1,8 @@
+[program:opentsdb]
+command={{ deployDir }}/bin/tsdb tsd
+directory={{ deployDir }}
+process_name=%(program_name)s
+autostart=false
+autorestart=true
+redirect_stderr=true
+startsecs=1

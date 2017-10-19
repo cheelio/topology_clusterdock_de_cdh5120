@@ -1,0 +1,54 @@
+---
+- hosts: all
+  strategy: debug
+  vars:
+       projectVersion: "{{ projectVersion }}"
+
+  tasks:
+   - name: Ensure opentsdb directory is present
+     file:
+        path: "{{ deployDir }}"
+        state: directory
+
+   - name: Ensure opentsdb binary is present
+     copy:
+        src: "deploy/opentsdb-2.3.0_RC2.rpm"
+        dest: "{{ deployDir }}"
+
+   - name: install opentsdb only if confi
+     shell: rpm2cpio opentsdb-2.3.0_RC2.rpm | pax -r -s '/\/usr\/share\/opentsdb//' -s '/\.\/usr\/bin/bin/' -s '/\.\/var\/cache\/opentsdb/cache/'
+     args:
+        chdir: "{{ deployDir }}"
+
+
+   - name: Ensure templated config-files are created
+     template: src={{item.src}} dest={{item.dest}}
+     with_items:
+        - { src: "deploy/opentsdb.conf.j2", dest: "{{ deployDir }}/etc/opentsdb/opentsdb.conf" }
+        - { src: "deploy/opentsdb-supervisor.conf.j2", dest: "{{ deployDir }}/opentsdb-supervisor.conf" }
+        - { src: "deploy/tsdb.j2", dest: "{{ deployDir }}/bin/tsdb" }
+        - { src: "deploy/logback.xml.j2", dest: "{{ deployDir }}/etc/opentsdb/logback.xml" }
+
+   - name: Ensure tsdb script has correct permissions
+     file:
+        path: "{{ deployDir }}/bin/tsdb"
+        mode: 0755
+
+   - name: Ensure config-file is replaced
+     template:
+        src: "deploy/opentsdb.conf.j2"
+        dest: "{{ deployDir }}/etc/opentsdb/opentsdb.conf"
+
+   - name: Ensure config file symlink is created
+     file:
+        force: yes
+        src: "{{ deployDir }}/etc/opentsdb/opentsdb.conf"
+        dest: "{{ deployDir }}/opentsdb.conf"
+        state: link
+
+   - name: Ensure supervisor conf symlink is updated
+     file:
+        force: yes
+        src: "{{ deployDir }}/{{ projectArtifactId }}-supervisor.conf"
+        dest: "{{ supervisorDir }}/{{ projectArtifactId }}.conf"
+        state: link

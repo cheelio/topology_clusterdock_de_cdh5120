@@ -1,0 +1,34 @@
+---
+- hosts: all
+  strategy: debug
+  vars:
+       projectVersion: "{{ projectVersion }}"
+
+  tasks:
+   - name: Ensure kafka-manager directory is present
+     file:
+        path: "{{ deployDir }}"
+        state: directory
+
+   - name: Ensure kafka-manager binary is present
+     copy:
+        src: "deploy/kafka-manager-1.3.1.8-1.noarch.rpm"
+        dest: "{{ deployDir }}"
+
+   - name: install kafka-manager
+     shell: rpm2cpio kafka-manager-1.3.1.8-1.noarch.rpm | pax -r -s '/\/usr\/share\/kafka-manager//' -s '/\.\/var\/run/run/' -s '/\.\/var\/log/log/' -s '/\.\/etc/etc/'
+     args:
+        chdir: "{{ deployDir }}"
+
+   - name: Ensure templated config-files are created
+     template: src={{item.src}} dest={{item.dest}}
+     with_items:
+        - { src: "deploy/application.conf.j2", dest: "{{ deployDir }}/conf/application.conf" }
+        - { src: "deploy/kafka-manager-supervisor.conf.j2", dest: "{{ deployDir }}/kafka-manager-supervisor.conf" }
+
+   - name: Ensure supervisor conf symlink is updated
+     file:
+        force: yes
+        src: "{{ deployDir }}/{{ projectArtifactId }}-supervisor.conf"
+        dest: "{{ supervisorDir }}/{{ projectArtifactId }}.conf"
+        state: link

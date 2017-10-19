@@ -1,0 +1,171 @@
+#!/bin/bash
+#
+# (c) Copyright 2011-2012 Cloudera, Inc.
+#
+# Init script for the Cloudera SCM Server's Embedded Database (postgresql).
+#
+# chkconfig: 2345 79 11
+# description: Cloudera SCM Server Embedded DB.
+
+### BEGIN INIT INFO
+# Provides: cloudera-scm-server-db
+# Required-Start: $local_fs $network $syslog
+# Should-Start:
+# Required-Stop:
+# Default-Start: 3 4 5
+# Default-Stop: 0 1 2 6
+# Short-Description: Cloudera SCM Server's Embedded DB
+# Description: Cloudera SCM Server's Embedded DB
+### END INIT INFO
+
+DATA_DIR=/var/lib/cloudera-scm-server-db/data
+
+# Source function library.
+# This not only pulls in functions that we don't use,
+# but it also sanitizes the environment a bit
+# by setting standard umask, PATH, etc.
+if [ -f /etc/rc.d/init.d/functions ]; then
+  . /etc/rc.d/init.d/functions
+elif [ -f /lib/lsb/init-functions ]; then
+  . /lib/lsb/init-functions
+  . /etc/rc.status
+  rc_reset
+fi
+
+# For SELinux we need to use 'runuser' not 'su'
+USER=cloudera-scm
+SU="sudo -u $USER bash"
+
+fast_stop_file=/var/run/cloudera-scm-server/db_fast_next_stop
+
+is_systemd=`pstree -p | head -1 | grep 'systemd(1)' -q && echo 1 || echo 0`
+
+RETVAL=0
+SERVER_LOGFILE="/var/log/cloudera-scm-server/db.log"
+
+# On some distros, with some versions of postgresql, the
+# initdb and pg_ctl binaries are not in the default path.
+# However, in these cases, 'psql' is a symlink to a binary
+# in some directory where we can also find initdb and pg_ctl,
+# so we can find psql's home and add it to the path. If that
+# location is already in the path, this is harmless, so it's
+# not worth making conditional.
+PG_PATH=$(dirname $(readlink -f $(which psql)))
+PATH="$PG_PATH:$PATH"
+
+# On systemd based distros, postgresql is configured to place
+# its socket files in /var/run/postgresql which can only be written
+# to by the 'postgres' user. But, of course, we do not run the
+# embedded DB as 'postgres'. So we need to assign a different
+# location for the socket files. Rather than alter behaviour on
+# all systems, we only override this if /var/run/postgresql exists.
+if [ -d '/var/run/postgresql' ]; then
+  # initialize_embedded_db.sh will automatically consume $EXTRA_PG_ARGS
+  export EXTRA_PG_ARGS='-k /var/run/cloudera-scm-server/'
+fi
+
+start()
+{
+  # Ensure the run directory exists in case we need it for the socket files.
+  install -d -o $USER -g $USER /var/run/cloudera-scm-server
+
+  # Run the initdb script to make sure the DB is correctly provisioned.
+  INITIALIZE_SCRIPT="/usr/share/cmf/bin/initialize_embedded_db.sh"
+  $SU -c "$INITIALIZE_SCRIPT $DATA_DIR $SERVER_LOGFILE" || return $?
+
+  # Start the database.
+  STATUS=$($SU -c "pg_ctl status -D $DATA_DIR")
+  if [[ $? -ne 0 ]]; then
+      $SU -c "pg_ctl start -w -D $DATA_DIR -l $SERVER_LOGFILE -o \"$EXTRA_PG_ARGS\""
+  else
+      # Already started
+      echo $STATUS
+  fi
+  return $?
+}
+
+
+do_stop()
+{
+  SHUTDOWN_MODE=$1
+  STATUS=$($SU -c "pg_ctl status -D $DATA_DIR")
+  if [[ $? -eq 0 ]]; then
+      $SU -c "pg_ctl stop -m $SHUTDOWN_MODE -w -D $DATA_DIR"
+  else
+      # Already stopped
+      echo $STATUS
+  fi
+  RETVAL=$?
+}
+
+stop()
+{
+  local MODE=smart
+  if [ -e $fast_stop_file ]; then
+    MODE=fast
+    rm -f $fast_stop_file
+  fi
+  do_stop $MODE
+}
+
+fast_stop()
+{
+  do_stop fast
+}
+
+fast_stop_warning() {
+  echo "The 'fast_stop' command is not supported on systemd based distros." \
+       "Please separately invoke the 'next_stop_fast' and 'stop' commands instead."
+  # Return a failure code so this doesn't become a silent no-op in an
+  # automation script.
+  RETVAL=-1
+}
+
+next_stop_fast() {
+  touch $fast_stop_file
+  RETVAL=$?
+}
+
+case "$1" in
+  initdb)
+    # This is here for backwards compatibility, in case any user scripts
+    # reference this command. But it's not listed in the usage anymore, and is
+    # just a no-op.
+    ;;
+  start)
+    start
+    RETVAL=$?
+    ;;
+  stop)
+    stop
+    RETVAL=$?
+    ;;
+  fast_stop)
+    if [ $is_systemd -eq 1 ]; then
+      fast_stop_warning
+    else
+      fast_stop
+    fi
+    RETVAL=$?
+    ;;
+  next_stop_fast)
+    next_stop_fast
+    ;;
+  status)
+    $SU -c "pg_ctl status -D $DATA_DIR"
+    RETVAL=$?
+    ;;
+  restart)
+    stop && start
+    RETVAL=$?
+    ;;
+  *)
+    if [ $is_systemd -eq 1 ]; then
+      echo "Usage: $prog {start|stop|next_stop_fast|restart|status}"
+    else
+      echo "Usage: $prog {start|stop|fast_stop|restart|status}"
+    fi
+    RETVAL=3
+esac
+
+exit $RETVAL

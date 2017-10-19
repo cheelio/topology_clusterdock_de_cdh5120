@@ -1,0 +1,8 @@
+localhost
+
+[all:vars]
+supervisorDir=/etc/supervisord.d
+ansible_connection=local
+deploy_platform=docker
+projectArtifactId=grafana
+deployDir=/root/tools/{{ projectArtifactId }}

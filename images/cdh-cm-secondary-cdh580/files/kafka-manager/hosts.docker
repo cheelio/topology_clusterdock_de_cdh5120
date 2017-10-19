@@ -1,0 +1,10 @@
+localhost
+
+[all:vars]
+supervisorDir=/etc/supervisord.d
+ansible_connection=local
+deploy_platform=docker
+projectArtifactId=kafka-manager
+deployDir=/root/tools/{{ projectArtifactId }}
+kafka_brokers=node-2.cluster:2181
+

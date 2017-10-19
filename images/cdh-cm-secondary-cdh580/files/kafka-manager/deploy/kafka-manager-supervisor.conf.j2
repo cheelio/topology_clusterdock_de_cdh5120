@@ -1,0 +1,8 @@
+[program:kafka-manager]
+command={{ deployDir}}/bin/kafka-manager -Dhttp.port=9090
+directory={{ deployDir }}
+process_name=%(program_name)s
+autostart=true
+autorestart=true
+redirect_stderr=true
+startsecs=1
