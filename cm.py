@@ -62,6 +62,12 @@ class ClouderaManagerDeployment:
         return self.api_client.get_cluster_parcels(cluster_name=cluster_name,
                                                    view=view)['items']
 
+
+    def get_commands(self):
+
+        return self.api_client.get_commands()
+
+
     def get_cluster_parcel_usage(self, cluster_name):
         """Get detailed parcel usage for a cluster.
 
@@ -386,3 +392,11 @@ class ClouderaManagerDeployment:
             A command.
         """
         return self.api_client.start_cm_service()
+
+    def stop_cm_service(self):
+        """Stops the Cloudera Manager Services.
+
+        Returns:
+            A command.
+        """
+        return self.api_client.stop_cm_service()

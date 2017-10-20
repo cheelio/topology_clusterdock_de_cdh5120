@@ -13,10 +13,8 @@
 
 import io
 import logging
-import re
 import socket
 import time
-
 from configobj import ConfigObj
 
 from clusterdock.models import Cluster, client, Node
@@ -95,9 +93,9 @@ def main(args):
 
     logger.info('Configuring Kerberos...')
 
-    cluster.primary_node.execute('/root/configure-kerberos.sh')
-    cluster.primary_node.execute('service krb5kdc start')
-    cluster.primary_node.execute('service kadmin start')
+    cluster.primary_node.execute('/root/configure-kerberos.sh', quiet=True)
+    cluster.primary_node.execute('service krb5kdc start', quiet=True)
+    cluster.primary_node.execute('service kadmin start', quiet=True)
 
     logger.info('Restarting Cloudera Manager agents ...')
     #_restart_cm_agents(cluster)
@@ -115,15 +113,17 @@ def main(args):
     # The work we need to do through CM itself begins here...
     deployment = ClouderaManagerDeployment(server_url)
 
+    deployment.stop_cm_service()
+    time.sleep(10)
+
+    logger.info('Starting krb5kdc and kadmin...')
+    cluster.primary_node.execute('service krb5kdc start', quiet=True)
+    cluster.primary_node.execute('service kadmin start', quiet=True)
+
     logger.info("Regenerating keytabs...")
-    cluster.primary_node.execute("curl -sc cookiejar -XGET -u admin:admin http://{0}:{1}/api/v14/clusters/cluster > /dev/null"
-            .format(primary_node.fqdn, 7180))
+    cluster.primary_node.execute("curl -sc cookiejar -XGET -u admin:admin http://{0}:{1}/api/v14/clusters/cluster".format(primary_node.fqdn, 7180), quiet=True)
+    cluster.primary_node.execute("curl -sb cookiejar -XPOST http://{0}:{1}/cmf/hardware/regenerateKeytab --data 'hostId=2&hostId=3&hostId=1' -H 'Referer: http://{0}:{1}/cmf/hardware/hosts'".format(primary_node.fqdn, 7180), quiet=True)
 
-    cluster.primary_node.execute("curl -sb cookiejar -XPOST http://{0}:{1}/cmf/hardware/regenerateKeytab --data 'hostId=2&hostId=3&hostId=1' -H 'Referer: http://{0}:{1}/cmf/hardware/hosts' > /dev/null"
-            .format(primary_node.fqdn, 7180))
-
-    # Add all CM hosts to the cluster (i.e. only new hosts that weren't part of the original
-    # images).
     all_host_ids = {}
     for host in deployment.get_all_hosts():
         all_host_ids[host['hostId']] = host['hostname']
@@ -133,33 +133,6 @@ def main(args):
                 break
         else:
             raise Exception('Could not find CM host with hostname {}.'.format(node.fqdn))
-
-
-
-    #cluster_host_ids = {host['hostId']
-    #                    for host in deployment.get_cluster_hosts(cluster_name=DEFAULT_CLUSTER_NAME)}
-    #host_ids_to_add = set(all_host_ids.keys()) - cluster_host_ids
-    #if host_ids_to_add:
-    #    logger.debug('Adding %s to cluster %s ...',
-    #                 'host{} ({})'.format('s' if len(host_ids_to_add) > 1 else '',
-    #                                      ', '.join(all_host_ids[host_id]
-    #                                                for host_id in host_ids_to_add)),
-    #                 DEFAULT_CLUSTER_NAME)
-    #    deployment.add_cluster_hosts(cluster_name=DEFAULT_CLUSTER_NAME, host_ids=host_ids_to_add)
-    #    _wait_for_activated_cdh_parcel(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME)
-
-        # Create and apply a host template to ensure that all the secondary nodes have the same
-        # CM roles running on them.
-    #    logger.info('Creating secondary node host template ...')
-    #    _create_secondary_node_template(deployment=deployment,
-    #                                    cluster_name=DEFAULT_CLUSTER_NAME,
-    #                                    secondary_node=secondary_nodes[0])
-    #    deployment.apply_host_template(cluster_name=DEFAULT_CLUSTER_NAME,
-    #                                   host_template_name=SECONDARY_NODE_TEMPLATE_NAME,
-    #                                   start_roles=False,
-    #                                   host_ids=host_ids_to_add)
-    #else:
-    #    _wait_for_activated_cdh_parcel(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME)
 
     if len(cluster.nodes) > 2:
         deployment.add_hosts_to_cluster(secondary_node_fqdn=secondary_nodes[0].fqdn,
@@ -183,21 +156,15 @@ def main(args):
 
     logger.info("Importing Credentials..")
 
-    cluster.primary_node.execute("curl -XPOST -u admin:admin http://{0}:{1}/api/v14/cm/commands/importAdminCredentials --data 'username=cloudera-scm/admin@CLOUDERA&password=cloudera'".format(primary_node.fqdn, 7180))
+    cluster.primary_node.execute("curl -XPOST -u admin:admin http://{0}:{1}/api/v14/cm/commands/importAdminCredentials?username=cloudera-scm/admin@CLOUDERA&password=cloudera".format(primary_node.fqdn, 7180), quiet=True)
     logger.info("deploy cluster client config...")
     deployment.deploy_cluster_client_config(cluster_name=DEFAULT_CLUSTER_NAME)
 
     logger.info("Configure for kerberos...")
-    cluster.primary_node.execute("curl -XPOST -u admin:admin http://{0}:{1}/api/v14/cm/commands/configureForKerberos --data 'clustername={2}'".format(primary_node.fqdn, 7180,DEFAULT_CLUSTER_NAME))
-
-    while True:
-        gcl = filter(lambda x: x.name == "GenerateCredentials" and x.active is True, deployment.cm.get_commands())
-        if len(gcl) == 0:
-            break
-        time.sleep(1)
+    cluster.primary_node.execute("curl -XPOST -u admin:admin http://{0}:{1}/api/v14/cm/commands/configureForKerberos --data 'clustername={2}'".format(primary_node.fqdn, 7180, DEFAULT_CLUSTER_NAME), quiet=True)
 
     logger.info("Creating keytab files...")
-    cluster.execute('/root/create-keytab.sh')
+    cluster.execute('/root/create-keytab.sh', quiet=True)
 
     logger.info('Deploying client config ...')
     _deploy_client_config(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME)
@@ -213,18 +180,16 @@ def main(args):
 
     logger.info("Setting up HDFS Homedir...")
 
-    cluster.primary_node.execute("kinit -kt /var/run/cloudera-scm-agent/process/*-hdfs-NAMENODE/hdfs.keytab hdfs/node-1.cluster@CLOUDERA")
-    cluster.primary_node.execute("hadoop fs -mkdir /user/cloudera-scm")
-    cluster.primary_node.execute("hadoop fs -chown cloudera-scm:cloudera-scm /user/cloudera-scm")
-
-    cluster.primary_node.execute('')
-
+    cluster.primary_node.execute("kinit -kt /var/run/cloudera-scm-agent/process/*-hdfs-NAMENODE/hdfs.keytab hdfs/node-1.cluster@CLOUDERA", quiet=True)
+    cluster.primary_node.execute("hadoop fs -mkdir /user/cloudera-scm", quiet=True)
+    cluster.primary_node.execute("hadoop fs -chown cloudera-scm:cloudera-scm /user/cloudera-scm", quiet=True)
 
     logger.info("Kinit cloudera-scm/admin...")
-    cluster.execute('kinit -kt /root/cloudera-scm.keytab cloudera-scm/admin')
+    cluster.execute('kinit -kt /root/cloudera-scm.keytab cloudera-scm/admin', quiet=True)
 
     logger.info("Executing post run script...")
-    cluster.execute("/root/post_run.sh")
+    cluster.secondary_nodes.execute("/root/post_run.sh")
+    cluster.edge_nodes.execute("/root/post_run.sh")
 
 
 def _configure_cm_agents(cluster):
