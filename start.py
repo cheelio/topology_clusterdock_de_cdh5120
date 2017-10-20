@@ -129,7 +129,7 @@ def main(args):
     cluster.primary_node.execute("curl -sb cookiejar -XPOST http://{0}:{1}/cmf/hardware/regenerateKeytab --data 'hostId=2&hostId=3&hostId=1' -H 'Referer: http://{0}:{1}/cmf/hardware/hosts'".format(primary_node.fqdn, 7180), quiet=True)
 
     while True:
-        gcl = filter(lambda x: x.name == "HostsRegenerateKeytab" and x.active is True, deployment.get_commands())
+        gcl = filter(lambda x: x.name == "HostsRegenerateKeytab" and x.active is True, deployment.get_cm_commands())
         if len(gcl) == 0:
             break
         time.sleep(1)
