@@ -505,8 +505,8 @@ class ApiClient:
         """
         return self._post(endpoint='{}/cm/service/commands/stop'.format(self.api_version)).json()
 
-    def get_cm_commands(self):
-        return self._get(endpoint='{}/cm/commands'.format(self.api_version)).json()
+    def get_regenerate_keytab_command(self):
+        return self._get(endpoint='{}/cm/commands/HostsRegenerateKeytab'.format(self.api_version)).json()
 
     def get_command_information(self, command_id):
         """Get detailed information on an asynchronous command.

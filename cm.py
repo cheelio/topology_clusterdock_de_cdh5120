@@ -62,9 +62,9 @@ class ClouderaManagerDeployment:
         return self.api_client.get_cluster_parcels(cluster_name=cluster_name,
                                                    view=view)['items']
 
-    def get_cm_commands(self):
+    def get_regenerate_keytab_command(self):
 
-        return self.api_client.get_cm_commands()
+        return self.api_client.get_regenerate_keytab_command()
 
     def get_cluster_parcel_usage(self, cluster_name):
         """Get detailed parcel usage for a cluster.

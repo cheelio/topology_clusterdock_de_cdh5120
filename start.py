@@ -15,6 +15,8 @@ import io
 import logging
 import socket
 import time
+from requests import HTTPError
+
 from configobj import ConfigObj
 
 from clusterdock.models import Cluster, client, Node, NodeGroup
@@ -128,9 +130,11 @@ def main(args):
     cluster.primary_node.execute("curl -sc cookiejar -XGET -u admin:admin http://{0}:{1}/api/v14/clusters/cluster".format(primary_node.fqdn, 7180), quiet=True)
     cluster.primary_node.execute("curl -sb cookiejar -XPOST http://{0}:{1}/cmf/hardware/regenerateKeytab --data 'hostId=2&hostId=3&hostId=1' -H 'Referer: http://{0}:{1}/cmf/hardware/hosts'".format(primary_node.fqdn, 7180), quiet=True)
 
+    # Wait for keytab regeneration...
     while True:
-        gcl = filter(lambda x: x.name == "HostsRegenerateKeytab" and x.active is True, deployment.get_cm_commands())
-        if len(gcl) == 0:
+        try:
+            deployment.get_regenerate_keytab_command()
+        except HTTPError:
             break
         time.sleep(1)
 
