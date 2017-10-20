@@ -17,7 +17,7 @@ import socket
 import time
 from configobj import ConfigObj
 
-from clusterdock.models import Cluster, client, Node
+from clusterdock.models import Cluster, client, Node, NodeGroup
 from clusterdock.utils import nested_get, wait_for_condition
 
 from .cm import ClouderaManagerDeployment
@@ -72,6 +72,10 @@ def main(args):
 
     cluster = Cluster(primary_node, *secondary_nodes)
     cluster.primary_node = primary_node
+
+    secondary_node_group = NodeGroup(secondary_nodes)
+    edge_node_group = NodeGroup(edge_nodes)
+
     cluster.start(args.network)
 
     filesystem_fix_commands = ['cp {0} {0}.1; umount {0}; mv -f {0}.1 {0}'.format(file_)
@@ -124,6 +128,12 @@ def main(args):
     cluster.primary_node.execute("curl -sc cookiejar -XGET -u admin:admin http://{0}:{1}/api/v14/clusters/cluster".format(primary_node.fqdn, 7180), quiet=True)
     cluster.primary_node.execute("curl -sb cookiejar -XPOST http://{0}:{1}/cmf/hardware/regenerateKeytab --data 'hostId=2&hostId=3&hostId=1' -H 'Referer: http://{0}:{1}/cmf/hardware/hosts'".format(primary_node.fqdn, 7180), quiet=True)
 
+    while True:
+        gcl = filter(lambda x: x.name == "HostsRegenerateKeytab" and x.active is True, deployment.get_commands())
+        if len(gcl) == 0:
+            break
+        time.sleep(1)
+
     all_host_ids = {}
     for host in deployment.get_all_hosts():
         all_host_ids[host['hostId']] = host['hostname']
@@ -145,6 +155,7 @@ def main(args):
                              cluster_name=DEFAULT_CLUSTER_NAME,
                              primary_node=primary_node)
 
+
     #deployment.update_database_configs()
     # deployment.update_hive_metastore_namenodes()
 
@@ -153,6 +164,8 @@ def main(args):
         {'SECURITY_REALM': 'CLOUDERA', 'KDC_HOST': 'node-1.cluster', 'KRB_MANAGE_KRB5_CONF': 'true'})
 
     deployment.update_service_config(service_name='hbase', cluster_name=DEFAULT_CLUSTER_NAME, configs={'hbase_superuser': 'cloudera-scm'})
+
+    deployment.update_service_role_config_group_config(service_name='hive', cluster_name=DEFAULT_CLUSTER_NAME, role_config_group_name='hive-HIVESERVER2-BASE', configs={'hiveserver2_webui_port': '10009'})
 
     logger.info("Importing Credentials..")
 
@@ -176,7 +189,7 @@ def main(args):
         _start_cm_service(deployment=deployment)
 
         logger.info('Validating service health ...')
-        _validate_service_health(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME)
+        #_validate_service_health(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME)
 
     logger.info("Setting up HDFS Homedir...")
 
@@ -188,8 +201,10 @@ def main(args):
     cluster.execute('kinit -kt /root/cloudera-scm.keytab cloudera-scm/admin', quiet=True)
 
     logger.info("Executing post run script...")
-    cluster.secondary_nodes.execute("/root/post_run.sh")
-    cluster.edge_nodes.execute("/root/post_run.sh")
+
+    cluster.execute()
+    secondary_node_group.execute("/root/post_run.sh")
+    edge_node_group.execute("/root/post_run.sh")
 
 
 def _configure_cm_agents(cluster):
