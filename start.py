@@ -192,9 +192,6 @@ def main(args):
         logger.info('Starting CM services ...')
         _start_cm_service(deployment=deployment)
 
-        logger.info('Validating service health ...')
-        #_validate_service_health(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME)
-
     logger.info("Setting up HDFS Homedir...")
 
     cluster.primary_node.execute("kinit -kt /var/run/cloudera-scm-agent/process/*-hdfs-NAMENODE/hdfs.keytab hdfs/node-1.cluster@CLOUDERA", quiet=True)
@@ -205,8 +202,6 @@ def main(args):
     cluster.execute('kinit -kt /root/cloudera-scm.keytab cloudera-scm/admin', quiet=True)
 
     logger.info("Executing post run script...")
-
-    cluster.execute()
     secondary_node_group.execute("/root/post_run.sh")
     edge_node_group.execute("/root/post_run.sh")
 
