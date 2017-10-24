@@ -18,13 +18,11 @@ import logging
 import os
 from time import sleep, time
 
-from clusterdock.topologies.cdh_de.cm_api.endpoints.host_templates import ApiHostTemplate
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-def add_hosts_to_cluster(api, cluster, secondary_node_fqdn, all_fqdns, secondary_nodes, edge_nodes):
+def add_hosts_to_cluster(api, cluster, all_fqdns, secondary_nodes, edge_nodes):
     """Add all CM hosts to cluster."""
 
     # Wait up to 60 seconds for CM to see all hosts.
@@ -66,7 +64,7 @@ def add_hosts_to_cluster(api, cluster, secondary_node_fqdn, all_fqdns, secondary
 
     logger.info('Waiting for parcels to get activated...')
     for parcel in cluster.get_all_parcels():
-        if parcel.stage not in  ['ACTIVATED', 'AVAILABLE_REMOTELY']:
+        if parcel.stage not in ['ACTIVATED', 'AVAILABLE_REMOTELY']:
             wait_for_parcel_stage(cluster, parcel, 'ACTIVATED')
 
     if len(secondary_host_ids_to_add) > 0:
@@ -76,6 +74,17 @@ def add_hosts_to_cluster(api, cluster, secondary_node_fqdn, all_fqdns, secondary
     if len(edge_host_ids_to_add) > 0:
         logger.info('Applying edge host template...')
         edge_node_template.apply_host_template(host_ids=edge_host_ids_to_add, start_roles=False)
+
+
+def wait_for_parcel_stage(cluster, cdh_parcel, expected_stage):
+    while True:
+        if cdh_parcel.stage == expected_stage:
+            break
+        if cdh_parcel.state and cdh_parcel.state.errors:
+            raise Exception(str(cdh_parcel.state.errors))
+
+        sleep(1)
+        cdh_parcel = cluster.get_parcel(product=cdh_parcel.product, version=cdh_parcel.version)
 
 
 def wait_for_parcel_stage(cluster, cdh_parcel, expected_stage):

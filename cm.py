@@ -12,8 +12,9 @@
 # limitations under the License.
 import logging
 from time import sleep
-from . import cm_api
 
+from . import cm_utils
+from . import cm_api
 
 logger = logging.getLogger('clusterdock.{}'.format(__name__))
 
