@@ -1,8 +1,0 @@
-[program:grafana]
-command={{ deployDir }}/bin/grafana-server
-directory={{ deployDir }}
-process_name=%(program_name)s
-autostart=false
-autorestart=true
-redirect_stderr=true
-startsecs=1

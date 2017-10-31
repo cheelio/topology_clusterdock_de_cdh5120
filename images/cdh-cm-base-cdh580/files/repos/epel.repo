@@ -1,8 +1,0 @@
-[epel]
-name=Extra Packages for Enterprise Linux 6 - $basearch
-baseurl=[EPEL_MIRROR_URL_PREFIX]/6/$basearch/
-failovermethod=priority
-enabled=1
-sslverify=0
-gpgcheck=0
-#gpgkey=[EPEL_MIRROR_URL_PREFIX]/RPM-GPG-KEY-EPEL-6

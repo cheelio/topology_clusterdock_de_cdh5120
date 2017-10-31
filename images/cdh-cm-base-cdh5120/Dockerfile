@@ -58,8 +58,6 @@ RUN sed -i -r "s|\s*Host \*\s*|&\n        StrictHostKeyChecking no|" /etc/ssh/ss
 
 #Add parcels:
 RUN mkdir -p /opt/cloudera/parcels
-RUN mkdir -p /opt/cloudera/parcel-cache
-ADD files/parcel-cache/* /opt/cloudera/parcel-cache/
 RUN cd /opt/cloudera/parcels && \
     curl -O $CLOUDERA_MIRROR_URL_PREFIX/cdh5/parcels/5.12.0/CDH-5.12.0-1.cdh5.12.0.p0.29-el6.parcel && \
     curl -O $CLOUDERA_MIRROR_URL_PREFIX/accumulo-c5/parcels/1.7.2.5/ACCUMULO-1.7.2-5.5.0.ACCUMULO5.5.0.p0.8-el6.parcel && \
