@@ -74,6 +74,7 @@ def main(args):
                   for hostname in args.edge_nodes]
 
     cluster = Cluster(primary_node, *secondary_nodes, *edge_nodes)
+
     cluster.primary_node = primary_node
 
     secondary_node_group = NodeGroup(secondary_nodes)
@@ -88,7 +89,17 @@ def main(args):
                                              '/etc/localtime']]
     cluster.execute("bash -c '{}'".format('; '.join(filesystem_fix_commands)))
 
+    # Use BSD tar instead of tar because it works bether with docker
+    cluster.execute("ln -fs /usr/bin/bsdtar /bin/tar")
+
     _configure_cm_agents(cluster)
+
+    etc_hosts_string = ''.join("{0}   {1}.{2} # Added by clusterdock\n".format(node.ip_address,
+                                                                               node.hostname,
+                                                                               DEFAULT_CLUSTER_NAME) for
+                               node in cluster.nodes)
+    with open('/etc/hosts', 'a') as etc_hosts:
+        etc_hosts.write(etc_hosts_string)
 
     # The CDH topology uses two pre-built images ('primary' and 'secondary'). If a cluster
     # larger than 2 nodes is started, some modifications need to be done to the nodes to
@@ -123,26 +134,14 @@ def main(args):
     deployment.stop_cm_service()
     time.sleep(10)
 
-    logger.info('Starting krb5kdc and kadmin...')
+    logger.info('Starting krb5kdc and kadmin ...')
     cluster.primary_node.execute('service krb5kdc start', quiet=True)
     cluster.primary_node.execute('service kadmin start', quiet=True)
 
     logger.info("Regenerating keytabs...")
-    cluster.primary_node.execute(
-        "curl -sc cookiejar -XGET -u admin:admin http://{0}:{1}/api/v14/clusters/cluster".format(primary_node.fqdn,
-                                                                                                 7180), quiet=True)
-    cluster.primary_node.execute(
-        "curl -sb cookiejar -XPOST http://{0}:{1}/cmf/hardware/regenerateKeytab --data 'hostId=2&hostId=3&hostId=1' -H 'Referer: http://{0}:{1}/cmf/hardware/hosts'".format(
-            primary_node.fqdn, 7180), quiet=True)
+    regenerate_keytabs(cluster, primary_node, deployment)
 
-    # Wait for keytab regeneration...
-    while True:
-        try:
-            deployment.get_regenerate_keytab_command()
-        except HTTPError:
-            break
-        time.sleep(1)
-
+    logger.info("Adding hosts to cluster ...")
     # Add all CM hosts to the cluster (i.e. only new hosts that weren't part of the original
     # images).
     all_host_ids = {}
@@ -170,7 +169,7 @@ def main(args):
 
     # create and Apply host templates
     deployment.create_host_template(cluster_name='cluster', host_template_name='secondary', role_config_group_names=['hdfs-DATANODE-BASE', 'hbase-REGIONSERVER-BASE', 'yarn-NODEMANAGER-BASE'])
-    deployment.create_host_template(cluster_name='cluster', host_template_name='edgenoode', role_config_group_names=['hive-GATEWAY-BASE', 'hbase-GATEWAY-BASE', 'hdfs-GATEWAY-BASE', 'spark_on_yarn-GATEWAY-BASE'])
+    deployment.create_host_template(cluster_name='cluster', host_template_name='edgenode', role_config_group_names=['hive-GATEWAY-BASE', 'hbase-GATEWAY-BASE', 'hdfs-GATEWAY-BASE', 'spark_on_yarn-GATEWAY-BASE'])
 
     deployment.apply_host_template(cluster_name=DEFAULT_CLUSTER_NAME,
                                    host_template_name='secondary',
@@ -205,14 +204,14 @@ def main(args):
 
     cluster.primary_node.execute(
         "curl -XPOST -u admin:admin http://{0}:{1}/api/v14/cm/commands/importAdminCredentials?username=cloudera-scm/admin@CLOUDERA&password=cloudera".format(
-            primary_node.fqdn, 7180), quiet=True)
+            primary_node.fqdn, CM_PORT), quiet=True)
     logger.info("deploy cluster client config...")
     deployment.deploy_cluster_client_config(cluster_name=DEFAULT_CLUSTER_NAME)
 
     logger.info("Configure for kerberos...")
     cluster.primary_node.execute(
         "curl -XPOST -u admin:admin http://{0}:{1}/api/v14/cm/commands/configureForKerberos --data 'clustername={2}'".format(
-            primary_node.fqdn, 7180, DEFAULT_CLUSTER_NAME), quiet=True)
+            primary_node.fqdn, CM_PORT, DEFAULT_CLUSTER_NAME), quiet=True)
 
     logger.info("Creating keytab files...")
     cluster.execute('/root/create-keytab.sh', quiet=True)
@@ -240,6 +239,15 @@ def main(args):
     logger.info("Executing post run script...")
     secondary_node_group.execute("/root/post_run.sh")
     edge_node_group.execute("/root/post_run.sh")
+
+
+def update_hosts_file(cluster):
+    etc_hosts_string = ''.join("{0}   {1}.{2} # Added by clusterdock\n".format(node.ip_address,
+                                                                               node.hostname,
+                                                                               node.network) for
+                               node in cluster.nodes)
+    with open('/etc/hosts', 'a') as etc_hosts:
+        etc_hosts.write(etc_hosts_string)
 
 
 def _configure_cm_agents(cluster):
@@ -338,7 +346,7 @@ def _wait_for_activated_cdh_parcel(deployment, cluster_name):
                            'CDH parcel to become activated.'.format(timeout))
 
     wait_for_condition(condition=condition, condition_args=[deployment, cluster_name],
-                       time_between_checks=1, timeout=120, time_to_success=10,
+                       time_between_checks=1, timeout=240, time_to_success=10,
                        success=success, failure=failure)
 
 
@@ -353,6 +361,23 @@ def _create_secondary_node_template(deployment, cluster_name, secondary_node):
     deployment.create_host_template(host_template_name=SECONDARY_NODE_TEMPLATE_NAME,
                                     cluster_name=cluster_name,
                                     role_config_group_names=role_config_group_names)
+
+
+def regenerate_keytabs(cluster, node, deployment):
+    cluster.primary_node.execute(
+        "curl -sc cookiejar -XGET -u admin:admin http://{0}:{1}/api/v14/clusters/cluster".format(node.fqdn,
+                                                                                                 CM_PORT), quiet=True)
+    cluster.primary_node.execute(
+        "curl -sb cookiejar -XPOST http://{0}:{1}/cmf/hardware/regenerateKeytab --data 'hostId=2&hostId=3&hostId=1' -H 'Referer: http://{0}:{1}/cmf/hardware/hosts'".format(
+            node.fqdn, CM_PORT), quiet=True)
+
+    # Wait for keytab regeneration...
+    while True:
+        try:
+            deployment.get_regenerate_keytab_command()
+        except HTTPError:
+            break
+        time.sleep(1)
 
 
 def _update_database_configs(deployment, cluster_name, primary_node):
