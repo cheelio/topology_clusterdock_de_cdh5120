@@ -94,6 +94,18 @@ def main(args):
 
     _configure_cm_agents(cluster)
 
+    # clean old clusterdock hosts-file entries.
+    with open('/etc/hosts', 'r') as etc_hosts:
+        host_lines = etc_hosts.readlines()
+    clusterdock_signature = '# Added by clusterdock'
+    if any(clusterdock_signature in line for line in host_lines):
+        logger.info('Clearing container entries from /etc/hosts...')
+        with open('/etc/hosts', 'w') as etc_hosts:
+            etc_hosts.writelines([line for line in host_lines if
+                                  clusterdock_signature not in line])
+        logger.info('Successfully cleared container entries from /etc/hosts.')
+
+    # update hosts file
     etc_hosts_string = ''.join("{0}   {1}.{2} # Added by clusterdock\n".format(node.ip_address,
                                                                                node.hostname,
                                                                                DEFAULT_CLUSTER_NAME) for
