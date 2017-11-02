@@ -23,6 +23,14 @@ node groups:
         - edge-1
 
 start args:
+    --clusterdock-namespace:
+        default: cheelio
+        help: The Docker namespace
+        metavar: ns
+    --image-name:
+        default: clusterdock-de
+        help: The Docker image name to use
+        metavar: image
     --version-string:
         default: cdh5120
         help: CDH version to use
@@ -30,15 +38,6 @@ start args:
     --dont-start-cluster:
         action: store_true
         help: Don't start clusters/services in Cloudera Manager
-    --exclude-services, -x:
-        help: If specified, a comma-separated list of service types to exclude from the CDH cluster
-        metavar: svc1,svc2,...
-    --include-services, -i:
-        help: If specified, a comma-separated list of service types to include in the CDH cluster
-        metavar: svc1,svc2,...
-    --predictable:
-        action: store_true
-        help: If specified, attempt to expose container ports to the same port number on the host
     --change-hostfile:
         action: store_true
         help: If specified, host-file entries on the docker guest will be made. (needs root-privileges)

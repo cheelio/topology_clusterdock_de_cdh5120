@@ -25,8 +25,6 @@ from requests import HTTPError
 
 from .cm import ClouderaManagerDeployment
 
-DEFAULT_NAMESPACE = 'cheelio'
-
 CM_PORT = 7180
 CM_AGENT_CONFIG_FILE_PATH = '/etc/cloudera-scm-agent/config.ini'
 CM_SERVER_ETC_DEFAULT = '/etc/default/cloudera-scm-server'
@@ -37,18 +35,25 @@ logger = logging.getLogger('clusterdock.{}'.format(__name__))
 
 
 def main(args):
-    primary_node_image = "{0}/{1}/clusterdock-de:cdh-cm-primary-{2}".format(
-        args.registry, args.namespace or DEFAULT_NAMESPACE,
+
+    primary_node_image = "{0}/{1}/{2}:cdh-cm-primary-{3}".format(
+        args.registry,
+        args.clusterdock_namespace,
+        args.image_name,
         args.version_string
     )
 
-    secondary_node_image = "{0}/{1}/clusterdock-de:cdh-cm-secondary-{2}".format(
-        args.registry, args.namespace or DEFAULT_NAMESPACE,
+    secondary_node_image = "{0}/{1}/{2}:cdh-cm-secondary-{3}".format(
+        args.registry,
+        args.clusterdock_namespace,
+        args.image_name,
         args.version_string
     )
 
-    edge_node_image = "{0}/{1}/clusterdock-de:cdh-cm-edge-{2}".format(
-        args.registry, args.namespace or DEFAULT_NAMESPACE,
+    edge_node_image = "{0}/{1}/{2}:cdh-cm-edge-{3}".format(
+        args.registry,
+        args.clusterdock_namespace,
+        args.image_name,
         args.version_string
     )
 
@@ -63,9 +68,7 @@ def main(args):
         'start_period': 30 * SECONDS
     }
     primary_node = Node(hostname=args.primary_node[0], group='primary',
-                        image=primary_node_image, ports=[{CM_PORT: CM_PORT}
-                                                         if args.predictable
-                                                         else CM_PORT],
+                        image=primary_node_image, ports=[{CM_PORT: CM_PORT}],
                         healthcheck=cm_server_healthcheck)
     secondary_nodes = [Node(hostname=hostname, group='secondary', image=secondary_node_image)
                        for hostname in args.secondary_nodes]
@@ -201,15 +204,15 @@ def main(args):
     cluster.primary_node.execute(
         "curl -XPOST -u admin:admin http://{0}:{1}/api/v14/cm/commands/importAdminCredentials?username=cloudera-scm/admin@CLOUDERA&password=cloudera".format(
             primary_node.fqdn, CM_PORT), quiet=True)
-    logger.info("deploy cluster client config...")
+    logger.info("deploy cluster client config ...")
     deployment.deploy_cluster_client_config(cluster_name=DEFAULT_CLUSTER_NAME)
 
-    logger.info("Configure for kerberos...")
+    logger.info("Configure for kerberos ...")
     cluster.primary_node.execute(
         "curl -XPOST -u admin:admin http://{0}:{1}/api/v14/cm/commands/configureForKerberos --data 'clustername={2}'".format(
             primary_node.fqdn, CM_PORT, DEFAULT_CLUSTER_NAME), quiet=True)
 
-    logger.info("Creating keytab files...")
+    logger.info("Creating keytab files ...")
     cluster.execute('/root/create-keytab.sh', quiet=True)
 
     logger.info('Deploying client config ...')
@@ -221,7 +224,7 @@ def main(args):
         logger.info('Starting CM services ...')
         _start_cm_service(deployment=deployment)
 
-    logger.info("Setting up HDFS Homedir...")
+    logger.info("Setting up HDFS Homedir ...")
 
     cluster.primary_node.execute(
         "kinit -kt /var/run/cloudera-scm-agent/process/*-hdfs-NAMENODE/hdfs.keytab hdfs/node-1.cluster@CLOUDERA",
@@ -229,10 +232,10 @@ def main(args):
     cluster.primary_node.execute("hadoop fs -mkdir /user/cloudera-scm", quiet=True)
     cluster.primary_node.execute("hadoop fs -chown cloudera-scm:cloudera-scm /user/cloudera-scm", quiet=True)
 
-    logger.info("Kinit cloudera-scm/admin...")
+    logger.info("Kinit cloudera-scm/admin ...")
     cluster.execute('kinit -kt /root/cloudera-scm.keytab cloudera-scm/admin', quiet=True)
 
-    logger.info("Executing post run script...")
+    logger.info("Executing post run script ...")
     secondary_node_group.execute("/root/post_run.sh")
     edge_node_group.execute("/root/post_run.sh")
 
@@ -243,7 +246,7 @@ def update_hosts_file(cluster):
         host_lines = etc_hosts.readlines()
     clusterdock_signature = '# Added by clusterdock'
     if any(clusterdock_signature in line for line in host_lines):
-        logger.info('Clearing container entries from /etc/hosts...')
+        logger.info('Clearing container entries from /etc/hosts ...')
         with open('/etc/hosts', 'w') as etc_hosts:
             etc_hosts.writelines([line for line in host_lines if
                                   clusterdock_signature not in line])
@@ -254,7 +257,7 @@ def update_hosts_file(cluster):
                                                                                node.hostname,
                                                                                DEFAULT_CLUSTER_NAME) for
                                node in cluster.nodes)
-    logger.info('Writing new container entries to /etc/hosts...')
+    logger.info('Writing new container entries to /etc/hosts ...')
     with open('/etc/hosts', 'a') as etc_hosts:
         etc_hosts.write(etc_hosts_string)
 
