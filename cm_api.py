@@ -534,8 +534,6 @@ class ApiClient:
                      url,
                      params or 'None')
         response = self.session.get(url, params=params or {})
-        if response.status_code != requests.codes.ok:
-            logger.error(url + " " + response.text)
         response.raise_for_status()
         return response
 
@@ -547,8 +545,6 @@ class ApiClient:
                      params or 'None',
                      data or 'None')
         response = self.session.post(url, params=params or {}, data=data)
-        if response.status_code != requests.codes.ok:
-            logger.error(url + " " + response.text)
         response.raise_for_status()
         return response
 
@@ -560,8 +556,6 @@ class ApiClient:
                      params or 'None',
                      data or 'None')
         response = self.session.delete(url, params=params or {}, data=data)
-        if response.status_code != requests.codes.ok:
-            logger.error(url + " " + response.text)
         response.raise_for_status()
         return response
 
@@ -573,7 +567,5 @@ class ApiClient:
                      params or 'None',
                      data or 'None')
         response = self.session.put(url, params=params or {}, data=data)
-        if response.status_code != requests.codes.ok:
-            logger.error(url + " " + response.text)
         response.raise_for_status()
         return response

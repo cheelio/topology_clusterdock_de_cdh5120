@@ -39,3 +39,6 @@ start args:
     --predictable:
         action: store_true
         help: If specified, attempt to expose container ports to the same port number on the host
+    --change-hostfile:
+        action: store_true
+        help: If specified, host-file entries on the docker guest will be made. (needs root-privileges)
