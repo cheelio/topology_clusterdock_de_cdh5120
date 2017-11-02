@@ -76,7 +76,9 @@ def main(args):
     edge_nodes = [Node(hostname=hostname, group='edge', image=edge_node_image)
                   for hostname in args.edge_nodes]
 
-    cluster = Cluster(primary_node, *secondary_nodes, *edge_nodes)
+    all_nodes = [primary_node] + secondary_nodes + edge_nodes
+
+    cluster = Cluster(*all_nodes)
 
     cluster.primary_node = primary_node
 
