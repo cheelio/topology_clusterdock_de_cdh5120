@@ -12,12 +12,10 @@
 # limitations under the License.
 
 import io
-import json
 import logging
 import socket
 import time
 
-import os
 from clusterdock.models import Cluster, client, Node, NodeGroup
 from clusterdock.utils import nested_get, wait_for_condition
 from configobj import ConfigObj
@@ -222,7 +220,35 @@ def main(args):
 
     if not args.dont_start_cluster:
         logger.info('Starting cluster services ...')
-        _start_cluster(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME)
+        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="zookeeper",
+                               command="start")
+        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="hdfs",
+                               command="start")
+        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="accumulo16",
+                               command="CreateHdfsDirCommand")
+        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="accumulo16",
+                               command="CreateAccumuloUserDirCommand")
+        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="accumulo16",
+                               command="AccumuloInitServiceCommand")
+        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="accumulo16",
+                               command="start")
+        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="yarn",
+                               command="start")
+        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="hbase",
+                               command="start")
+        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="flume",
+                               command="start")
+        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="spark_on_yarn",
+                               command="start")
+        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="sqoop",
+                               command="start")
+        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="hive",
+                               command="start")
+        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="oozie",
+                               command="start")
+        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="hue",
+                               command="start")
+
         logger.info('Starting CM services ...')
         _start_cm_service(deployment=deployment)
 
@@ -495,6 +521,29 @@ def _start_cluster(deployment, cluster_name):
     def failure(timeout):
         raise TimeoutError('Timed out after {} seconds waiting '
                            'for cluster to start.'.format(timeout))
+
+    wait_for_condition(condition=condition, condition_args=[deployment, command_id],
+                       time_between_checks=3, timeout=600, success=success, failure=failure)
+
+
+def _start_service_command(deployment, cluster_name, service_name, command):
+    command_id = deployment.start_cluster_service_command(cluster_name=cluster_name, service_name=service_name, command=command)['id']
+
+    def condition(deployment, command_id):
+        command_information = deployment.api_client.get_command_information(command_id)
+        active = command_information.get('active')
+        success = command_information.get('success')
+        logger.debug('Start cluster command: (active: %s, success: %s)', active, success)
+        if not active and not success:
+            raise Exception('Failed to start cluster service.')
+        return not active and success
+
+    def success(time):
+        logger.debug('Started cluster service in %s seconds.', time)
+
+    def failure(timeout):
+        raise TimeoutError('Timed out after {} seconds waiting '
+                           'for cluster service to start.'.format(timeout))
 
     wait_for_condition(condition=condition, condition_args=[deployment, command_id],
                        time_between_checks=3, timeout=600, success=success, failure=failure)

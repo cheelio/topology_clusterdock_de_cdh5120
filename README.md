@@ -74,7 +74,7 @@ sudo clusterdock start topology_clusterdock_de_cdh5120 --change-hostfile
 * SSH Access to the nodes:
 ```
 clusterdock ssh node-1.cluster
-clusterdock ssh node-2cluster
+clusterdock ssh node-2.cluster
 clusterdock ssh edge-1.cluster
 ```
 * Display help:
@@ -92,6 +92,7 @@ Urls and locations
 * Kafka: node-2.cluster:9092
 * Kafka JMX Port: http://node-2.cluster:9099
 * OpenTSDB: http://node-2.cluster:4242
+* Accumulo root password: secret    
 * Kerberos Keytab: /root/cloudera-scm.keytab
 * Kerberos Principal: cloudera-scm/admin@CLOUDERA
 * Kerberos Principal password: cloudera

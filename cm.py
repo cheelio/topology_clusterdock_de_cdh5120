@@ -361,6 +361,9 @@ class ClouderaManagerDeployment:
         """
         return self.api_client.deploy_cluster_client_config(cluster_name=cluster_name)
 
+    def start_cluster_service_command(self, cluster_name, service_name, command):
+        return self.api_client.start_cluster_service_command(cluster_name=cluster_name,service_name=service_name,command=command)
+
     def start_all_cluster_services(self, cluster_name):
         """Start all cluster services in the cluster.
 

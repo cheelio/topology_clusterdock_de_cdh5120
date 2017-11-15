@@ -34,6 +34,7 @@ class ApiClient:
         password (:obj:`str`, optional): Cloudera Manager password. Default:
             :py:const:`DEFAULT_CM_PASSWORD`
     """
+
     def __init__(self,
                  server_url,
                  username=DEFAULT_CM_USERNAME,
@@ -475,6 +476,20 @@ class ApiClient:
         """
         return self._post(endpoint='{}/clusters/{}/commands/start'.format(self.api_version,
                                                                           cluster_name)).json()
+
+    def start_cluster_service_command(self, cluster_name, service_name, command):
+        """Exectue cluster service commands .
+
+        Args:
+            cluster_name (:obj:`str`): The name of the cluster.
+            service_name (:obj:`str`): The name of the cluster service.
+            command (:obj: `str`): The name of the command
+        Returns:
+            A dictionary (command) of the submitted command.
+        """
+        return self._post(endpoint='{}/clusters/{}/services/{}/commands/{}'.format(self.api_version,
+                                                                                   cluster_name, service_name,
+                                                                                   command)).json()
 
     def get_cm_service(self, view='summary'):
         """Get Cloudera Manager Services service.
