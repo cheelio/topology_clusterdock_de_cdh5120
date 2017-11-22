@@ -1,23 +1,21 @@
 {
-  "name": "edgenode",
-  "clusterRef": {
-    "clusterName": "cluster"
-  },
-  "roleConfigGroupRefs": [
-    {
-      "roleConfigGroupName": "hive-GATEWAY-BASE"
+    "name" : "edgenode",
+    "clusterRef" : {
+      "clusterName" : "cluster"
     },
-    {
-      "roleConfigGroupName": "hbase-GATEWAY-BASE"
-    },
-    {
-      "roleConfigGroupName": "hdfs-GATEWAY-BASE"
-    },
-    {
-      "roleConfigGroupName": "yarn-GATEWAY-BASE"
-    },
-    {
-      "roleConfigGroupName": "spark_on_yarn-GATEWAY-BASE"
-    }
-  ]
-}
+    "roleConfigGroupRefs" : [ {
+      "roleConfigGroupName" : "hive-GATEWAY-BASE"
+    }, {
+      "roleConfigGroupName" : "hbase-GATEWAY-BASE"
+    }, {
+      "roleConfigGroupName" : "accumulo16-GATEWAY-BASE"
+    }, {
+      "roleConfigGroupName" : "hdfs-GATEWAY-BASE"
+    }, {
+      "roleConfigGroupName" : "sqoop_client-GATEWAY-BASE"
+    }, {
+      "roleConfigGroupName" : "yarn-GATEWAY-BASE"
+    }, {
+      "roleConfigGroupName" : "spark_on_yarn-GATEWAY-BASE"
+    } ]
+  }

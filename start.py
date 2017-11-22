@@ -33,7 +33,6 @@ logger = logging.getLogger('clusterdock.{}'.format(__name__))
 
 
 def main(args):
-
     primary_node_image = "{0}/{1}/{2}:cdh-cm-primary-{3}".format(
         args.registry,
         args.clusterdock_namespace,
@@ -104,7 +103,7 @@ def main(args):
     # larger than 2 nodes is started, some modifications need to be done to the nodes to
     # prevent duplicate heartbeats and things like that.
     if len(secondary_nodes) > 1:
-        _remove_files(nodnoes=secondary_nodes[1:],
+        _remove_files(nodes=secondary_nodes[1:],
                       files=['/var/lib/cloudera-scm-agent/uuid',
                              '/dfs*/dn/current/*'])
 
@@ -167,8 +166,12 @@ def main(args):
     _wait_for_activated_cdh_parcel(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME)
 
     # create and Apply host templates
-    deployment.create_host_template(cluster_name='cluster', host_template_name='secondary', role_config_group_names=['hdfs-DATANODE-BASE', 'hbase-REGIONSERVER-BASE', 'yarn-NODEMANAGER-BASE'])
-    deployment.create_host_template(cluster_name='cluster', host_template_name='edgenode', role_config_group_names=['hive-GATEWAY-BASE', 'hbase-GATEWAY-BASE', 'hdfs-GATEWAY-BASE', 'spark_on_yarn-GATEWAY-BASE'])
+    deployment.create_host_template(cluster_name='cluster', host_template_name='secondary',
+                                    role_config_group_names=['hdfs-DATANODE-BASE', 'hbase-REGIONSERVER-BASE',
+                                                             'yarn-NODEMANAGER-BASE'])
+    deployment.create_host_template(cluster_name='cluster', host_template_name='edgenode',
+                                    role_config_group_names=['hive-GATEWAY-BASE', 'hbase-GATEWAY-BASE',
+                                                             'hdfs-GATEWAY-BASE', 'spark_on_yarn-GATEWAY-BASE'])
 
     deployment.apply_host_template(cluster_name=DEFAULT_CLUSTER_NAME,
                                    host_template_name='secondary',
@@ -224,30 +227,39 @@ def main(args):
                                command="start")
         _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="hdfs",
                                command="start")
-        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="accumulo16",
-                               command="CreateHdfsDirCommand")
-        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="accumulo16",
-                               command="CreateAccumuloUserDirCommand")
-        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="accumulo16",
-                               command="AccumuloInitServiceCommand")
-        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="accumulo16",
-                               command="start")
-        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="yarn",
-                               command="start")
-        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="hbase",
-                               command="start")
-        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="flume",
-                               command="start")
-        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="spark_on_yarn",
-                               command="start")
-        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="sqoop",
-                               command="start")
-        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="hive",
-                               command="start")
-        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="oozie",
-                               command="start")
-        _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="hue",
-                               command="start")
+        if not args.skip_accumulo:
+            _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="accumulo16",
+                                   command="CreateHdfsDirCommand")
+            _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="accumulo16",
+                                   command="CreateAccumuloUserDirCommand")
+            _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="accumulo16",
+                                   command="AccumuloInitServiceCommand")
+            _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="accumulo16",
+                                   command="start")
+        if not args.skip_yarn:
+            _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="yarn",
+                                   command="start")
+        if not args.skip_hbase:
+            _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="hbase",
+                                   command="start")
+        if not args.skip_flume:
+            _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="flume",
+                                   command="start")
+        if not args.skip_spark:
+            _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="spark_on_yarn",
+                                   command="start")
+        if not args.skip_sqoop:
+            _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="sqoop",
+                                   command="start")
+        if not args.skip_hive:
+            _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="hive",
+                                   command="start")
+        if not args.skip_oozie:
+            _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="oozie",
+                                   command="start")
+        if not args.skip_hue:
+            _start_service_command(deployment=deployment, cluster_name=DEFAULT_CLUSTER_NAME, service_name="hue",
+                                   command="start")
 
         logger.info('Starting CM services ...')
         _start_cm_service(deployment=deployment)
@@ -386,7 +398,7 @@ def _wait_for_activated_cdh_parcel(deployment, cluster_name):
                            'CDH parcel to become activated.'.format(timeout))
 
     wait_for_condition(condition=condition, condition_args=[deployment, cluster_name],
-                       time_between_checks=1, timeout=240, time_to_success=10,
+                       time_between_checks=1, timeout=500, time_to_success=10,
                        success=success, failure=failure)
 
 
@@ -527,7 +539,9 @@ def _start_cluster(deployment, cluster_name):
 
 
 def _start_service_command(deployment, cluster_name, service_name, command):
-    command_id = deployment.start_cluster_service_command(cluster_name=cluster_name, service_name=service_name, command=command)['id']
+    command_id = \
+    deployment.start_cluster_service_command(cluster_name=cluster_name, service_name=service_name, command=command)[
+        'id']
 
     def condition(deployment, command_id):
         command_information = deployment.api_client.get_command_information(command_id)
@@ -546,7 +560,7 @@ def _start_service_command(deployment, cluster_name, service_name, command):
                            'for cluster service to start.'.format(timeout))
 
     wait_for_condition(condition=condition, condition_args=[deployment, command_id],
-                       time_between_checks=3, timeout=600, success=success, failure=failure)
+                       time_between_checks=1, timeout=600, success=success, failure=failure)
 
 
 def _start_cm_service(deployment):

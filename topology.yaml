@@ -19,6 +19,9 @@ node groups:
         - node-1
     secondary-nodes:
         - node-2
+        - node-3
+        - node-4
+        - node-5
     edge-nodes:
         - edge-1
 
@@ -38,6 +41,33 @@ start args:
     --dont-start-cluster:
         action: store_true
         help: Don't start clusters/services in Cloudera Manager
+    --skip-accumulo:
+        action: store_true
+        help: Don't start Accumulo service
+    --skip-yarn:
+        action: store_true
+        help: Don't start Yarn service
+    --skip-hbase:
+        action: store_true
+        help: Don't start HBase service
+    --skip-flume:
+        action: store_true
+        help: Don't start Flume service
+    --skip-spark:
+        action: store_true
+        help: Don't start Spark service
+    --skip-sqoop:
+        action: store_true
+        help: Don't start Sqoop service
+    --skip-hive:
+        action: store_true
+        help: Don't start Hive service
+    --skip-oozie:
+        action: store_true
+        help: Don't start Oozie service
+    --skip-hue:
+        action: store_true
+        help: Don't start Hue service
     --change-hostfile:
         action: store_true
         help: If specified, host-file entries on the docker guest will be made. (needs root-privileges)

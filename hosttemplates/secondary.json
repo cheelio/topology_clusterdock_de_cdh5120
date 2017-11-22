@@ -1,17 +1,15 @@
 {
-  "name": "secondary",
-  "clusterRef": {
-    "clusterName": "cluster"
-  },
-  "roleConfigGroupRefs": [
-    {
-      "roleConfigGroupName": "hdfs-DATANODE-BASE"
+    "name" : "secondary",
+    "clusterRef" : {
+      "clusterName" : "cluster"
     },
-    {
-      "roleConfigGroupName": "hbase-REGIONSERVER-BASE"
-    },
-    {
-      "roleConfigGroupName": "yarn-NODEMANAGER-BASE"
-    }
-  ]
-}
+    "roleConfigGroupRefs" : [ {
+      "roleConfigGroupName" : "hdfs-DATANODE-BASE"
+    }, {
+      "roleConfigGroupName" : "hbase-REGIONSERVER-BASE"
+    }, {
+      "roleConfigGroupName" : "yarn-NODEMANAGER-BASE"
+    }, {
+      "roleConfigGroupName" : "accumulo16-ACCUMULO16_TSERVER-BASE"
+    } ]
+  }
